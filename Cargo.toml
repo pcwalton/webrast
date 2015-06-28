@@ -1,0 +1,21 @@
+[package]
+
+name = "webrast"
+version = "0.1.0"
+
+[[bin]]
+name = "webrast"
+path = "lib.rs"
+
+[dependencies]
+log = "*"
+
+[dependencies.geom]
+path = "../servo-packages/rust-geom"
+
+[dependencies.gleam]
+path = "../servo-packages/gleam"
+
+[dependencies.glutin]
+path = "../servo-packages/glutin"
+
