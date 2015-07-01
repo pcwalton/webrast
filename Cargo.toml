@@ -9,6 +9,10 @@ path = "lib.rs"
 
 [dependencies]
 log = "*"
+num_cpus = "*"
+
+[dependencies.freetype-rs]
+path = "../servo-packages/freetype-rs"
 
 [dependencies.geom]
 path = "../servo-packages/rust-geom"

@@ -4,11 +4,14 @@
 
 extern crate glutin;
 
+use assets::{AssetDescription, AssetManager, Glyph};
+use atlas::Atlas;
 use batch::Batcher;
 use context::Context;
 use display_list::{Au, BaseDisplayItem, ClippingRegion, Color, DisplayItem, DisplayList};
-use display_list::{SolidColorDisplayItem};
+use display_list::{SolidColorDisplayItem, TextDisplayItem};
 use draw::DrawContext;
+use job_server::JobServer;
 
 use demo::glutin::{Api, GlRequest, WindowBuilder};
 use euclid::point::Point2D;
@@ -16,6 +19,11 @@ use euclid::rect::Rect;
 use euclid::size::Size2D;
 use gleam::gl;
 use log::{self, Log, LogLevelFilter, LogMetadata, LogRecord};
+use num_cpus;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+static FONT_PATH: &'static str = "/Users/pcwalton/Library/Fonts/Montserrat-Regular.ttf";
 
 struct SimpleLogger;
 
@@ -47,7 +55,11 @@ pub fn main() {
         window.make_current();
     }
 
-    let display_list = DisplayList {
+    let atlas = Atlas::new();
+    let job_server = Rc::new(RefCell::new(JobServer::new(num_cpus::get() as u32)));
+    let asset_manager = AssetManager::new(job_server, atlas);
+
+    let mut display_list = DisplayList {
         items: vec![
             DisplayItem::SolidColor(Box::new(SolidColorDisplayItem {
                 base: BaseDisplayItem {
@@ -81,17 +93,32 @@ pub fn main() {
                     a: 255,
                 },
             })),
+            DisplayItem::Text(Box::new(TextDisplayItem {
+                base: BaseDisplayItem {
+                    bounds: Rect::new(Point2D::new(Au::from_px(0), Au::from_px(0)),
+                                      Size2D::new(Au::from_px(100), Au::from_px(100))),
+                    clip: ClippingRegion {
+                        main: Rect::new(Point2D::new(Au::from_px(200), Au::from_px(200)),
+                                        Size2D::new(Au::from_px(100), Au::from_px(100))),
+                    },
+                },
+                asset: asset_manager.create_asset(AssetDescription::Glyph(Glyph::new(
+                                   FONT_PATH.to_string(),
+                                   'S'))),
+            })),
         ],
     };
 
-    let context = Context {
+    let mut context = Context {
+        asset_manager: asset_manager,
         render_target_size: Size2D::new(800, 600),
     };
-    let mut draw_context = DrawContext::new();
+    context.asset_manager.start_rasterizing_assets_in_display_list_as_necessary(&mut display_list);
 
+    let mut draw_context = DrawContext::new();
     let mut batcher = Batcher::new();
-    for item in display_list.items.into_iter() {
-        batcher.add(&context, item)
+    for mut item in display_list.items.into_iter() {
+        batcher.add(&mut context, &mut item)
     }
     let batches = batcher.finish();
 

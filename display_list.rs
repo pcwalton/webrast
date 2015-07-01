@@ -2,9 +2,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+use assets::Asset;
+
 use euclid::Rect;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 const AU_PER_PX: i32 = 60;
+
+pub static BLACK: Color = Color {
+    r: 0,
+    g: 0,
+    b: 0,
+    a: 255,
+};
 
 pub static TRANSPARENT_GREEN: Color = Color {
     r: 0,
@@ -35,6 +46,7 @@ pub struct DisplayList {
 #[derive(Clone)]
 pub enum DisplayItem {
     SolidColor(Box<SolidColorDisplayItem>),
+    Text(Box<TextDisplayItem>),
 }
 
 impl DisplayItem {
@@ -43,6 +55,7 @@ impl DisplayItem {
             DisplayItem::SolidColor(ref solid_color_display_item) => {
                 &solid_color_display_item.base
             }
+            DisplayItem::Text(ref text_display_item) => &text_display_item.base,
         }
     }
 }
@@ -51,6 +64,12 @@ impl DisplayItem {
 pub struct SolidColorDisplayItem {
     pub base: BaseDisplayItem,
     pub color: Color,
+}
+
+#[derive(Clone)]
+pub struct TextDisplayItem {
+    pub base: BaseDisplayItem,
+    pub asset: Rc<RefCell<Asset>>,
 }
 
 #[derive(Copy, Clone, Debug)]

@@ -4,15 +4,21 @@
 
 #![feature(main)]
 
+extern crate freetype;
 extern crate geom as euclid;
 extern crate gleam;
+extern crate num_cpus;
 
 #[macro_use]
 extern crate log;
 
+pub mod assets;
+pub mod atlas;
 pub mod batch;
 pub mod context;
 pub mod demo;
+pub mod distance_field;
 pub mod display_list;
 pub mod draw;
+pub mod job_server;
 

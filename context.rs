@@ -4,7 +4,11 @@
 
 use euclid::Size2D;
 
+use assets::AssetManager;
+
 pub struct Context {
+    /// The asset manager.
+    pub asset_manager: AssetManager,
     /// The size of the render target in pixels.
     pub render_target_size: Size2D<i32>,
 }

@@ -37,8 +37,7 @@ static FRAGMENT_SHADER: &'static str = "
     varying vec2 vTextureCoord;
 
     void main() {
-        /*vec4 lTextureColor = texture2D(uTexture, vTextureCoord);*/
-        vec4 lTextureColor = vec4(0.0, 0.0, 0.0, 0.0);
+        vec4 lTextureColor = texture2D(uTexture, vTextureCoord);
         float lAlpha = smoothstep(vBufferGamma[0] - vBufferGamma[1],
                                   vBufferGamma[0] + vBufferGamma[1],
                                   lTextureColor.a);
