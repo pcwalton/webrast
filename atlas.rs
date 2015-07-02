@@ -71,7 +71,6 @@ impl Atlas {
     }
 
     fn upload(&mut self, location: &AtlasLocation, buffer: &[u8]) -> Rc<RefCell<AtlasHandle>> {
-        println!("buffer size={}, location={:?}", buffer.len(), location.rect);
         assert!(buffer.len() >=
                 (location.rect.size.width * location.rect.size.height * 4) as usize);
         gl::bind_texture(gl::TEXTURE_2D, self.texture);

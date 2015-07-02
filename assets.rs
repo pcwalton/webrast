@@ -16,7 +16,11 @@ use std::mem;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
-const FONT_SIZE_FOR_RASTERIZATION: i32 = 96;
+const DISTANCE_FIELD_SIZE: i32 = 96;
+const FONT_SIZE_FOR_RASTERIZATION: i32 = 256;
+const DISTANCE_FIELD_RATIO: f32 =
+    (DISTANCE_FIELD_SIZE as f32) / (FONT_SIZE_FOR_RASTERIZATION as f32);
+const GLYPH_BUFFER_SIZE_RATIO: f32 = 0.5;
 
 pub struct AssetContext {
     freetype_library: Library,
@@ -75,25 +79,28 @@ impl Glyph {
 
         let glyph = face.glyph();
         let bitmap = glyph.bitmap();
-        let width = bitmap.width() as u32;
-        let height = (FONT_SIZE_FOR_RASTERIZATION - glyph.bitmap_top()) as u32;
+        let glyph_width = bitmap.width() as u32;
+        let glyph_height = (FONT_SIZE_FOR_RASTERIZATION - glyph.bitmap_top()) as u32;
         let buffer = bitmap.buffer();
-        let distance_field = distance_field::build(buffer, width, height);
+        let glyph_size = Size2D::new(glyph_width, glyph_height);
+        let glyph_size_in_field =
+            Size2D::new(((glyph_width as f32) * DISTANCE_FIELD_RATIO) as u32,
+                        ((glyph_height as f32) * DISTANCE_FIELD_RATIO) as u32);
+        let extra_buffer_size =
+            Size2D::new((glyph_size_in_field.width as f32 * GLYPH_BUFFER_SIZE_RATIO) as u32,
+                        (glyph_size_in_field.height as f32 * GLYPH_BUFFER_SIZE_RATIO) as u32);
+        let distance_field_size =
+            Size2D::new(glyph_size_in_field.width + extra_buffer_size.width,
+                        glyph_size_in_field.height + extra_buffer_size.height);
+        let distance_field = distance_field::build(buffer,
+                                                   &glyph_size,
+                                                   &glyph_size_in_field,
+                                                   &distance_field_size);
 
         AssetRasterization {
             data: distance_field,
-            size: Size2D::new(width, height),
+            size: distance_field_size,
         }
-
-        /*
-        for y in 0..height {
-            for x in 0..width {
-                print!("{}",
-                       [' ', '.', ',', '"', ';', 'O', '@', '#'][(distance_field[(y * width + x) as
-                       usize] >> 5) as usize])
-            }
-            println!("");
-        }*/
     }
 }
 

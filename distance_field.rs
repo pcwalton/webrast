@@ -6,37 +6,63 @@
 //!
 //! TODO(pcwalton): Replace with a better algorithm.
 
+use euclid::{Point2D, Size2D};
 use std::cmp;
 use std::f32;
 
-const FIELD_CUTOFF: u8 = 128;
+pub const BUFFER: u8 = 192;
 
-pub fn build(data: &[u8], width: u32, height: u32) -> Vec<u8> {
-    let mut result = Vec::with_capacity((width * height * 4) as usize);
-    for y0 in 0..height {
-        for x0 in 0..width {
-            let inside_glyph = data[(y0 * width + x0) as usize] != 0;
-            let mut distance = 255;
-            for y1 in 0..height {
-                for x1 in 0..width {
-                    if (x0, y0) == (x1, y1) {
+pub fn build(data: &[u8],
+             glyph_size: &Size2D<u32>,
+             glyph_size_in_field: &Size2D<u32>,
+             field_size: &Size2D<u32>)
+             -> Vec<u8> {
+    let mut result = Vec::with_capacity((field_size.width * field_size.height * 4) as usize);
+    let offset_from_field_to_glyph =
+        Point2D::new(((field_size.width - glyph_size_in_field.width) / 2),
+                     ((field_size.height - glyph_size_in_field.height) / 2));
+    let ratio = (glyph_size.width as f32) / (glyph_size_in_field.width as f32);
+    for y0 in 0..field_size.height {
+        for x0 in 0..field_size.width {
+            let glyph_point_inside_field =
+                Point2D::new((x0 as i32) - (offset_from_field_to_glyph.x as i32),
+                             (y0 as i32) - (offset_from_field_to_glyph.y as i32));
+            let glyph_point = Point2D::new(((glyph_point_inside_field.x as f32) * ratio) as i32,
+                                           ((glyph_point_inside_field.y as f32) * ratio) as i32);
+            let inside_glyph = glyph_point.x > 0 && glyph_point.y > 0 &&
+                glyph_point.x < glyph_size.width as i32 &&
+                glyph_point.y < glyph_size.height as i32 &&
+                data[(glyph_point.y * (glyph_size.width as i32) + glyph_point.x) as usize] != 0;
+            let mut distance = 127.0;
+            for y1 in 0..glyph_size.height {
+                for x1 in 0..glyph_size.width {
+                    if glyph_point == Point2D::new(x1 as i32, y1 as i32) {
                         continue
                     }
-                    let test_point_inside_glyph = data[(y1 * width + x1) as usize] != 0;
+                    let test_point_inside_glyph = data[(y1 * glyph_size.width + x1) as usize] != 0;
                     if test_point_inside_glyph == inside_glyph {
                         continue
                     }
-                    let (x0, y0, x1, y1) = (x0 as f32, y0 as f32, x1 as f32, y1 as f32);
+                    let (x0, y0) = (glyph_point.x as f32, glyph_point.y as f32);
+                    let (x1, y1) = (x1 as f32, y1 as f32);
                     let (y_delta, x_delta) = (y1 - y0, x1 - x0);
-                    distance = cmp::min(distance,
-                                        f32::sqrt(y_delta * y_delta + x_delta * x_delta) as u8);
+                    let this_distance = f32::sqrt(y_delta * y_delta + x_delta * x_delta);
+                    if this_distance < distance {
+                        distance = this_distance
+                    }
                 }
             }
-            let value = if inside_glyph {
-                FIELD_CUTOFF + (((distance as u64) * 10) as u8)
+            let mut value = if inside_glyph {
+                (BUFFER as i64 + (((distance * 10.0) - 10.0) as i64))
             } else {
-                FIELD_CUTOFF - (((distance as u64) * 10) as u8)
+                (BUFFER as i64 - ((distance * 10.0) as i64))
             };
+            if value < 0 {
+                value = 0
+            } else if value > 255 {
+                value = 255
+            }
+            let value = value as u8;
             result.extend([ 255, 255, 255, value ].iter());
         }
     }

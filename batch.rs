@@ -7,6 +7,7 @@ use atlas::{self, Priority};
 use context::Context;
 use display_list::{Au, BLACK, ClippingRegion, Color, DisplayItem, TRANSPARENT_BLACK};
 use display_list::{TRANSPARENT_GREEN, WHITE};
+use distance_field;
 
 use euclid::{Point2D, Point3D, Rect, Size2D};
 use std::iter;
@@ -14,8 +15,8 @@ use std::iter;
 const NEAR_DEPTH_VALUE: f32 = -0.5;
 const FAR_DEPTH_VALUE: f32 = 0.5;
 
-const BUFFER: f32 = 0.5;
-const GAMMA: f32 = 0.1;
+const BUFFER: f32 = (distance_field::BUFFER as f32) / 255.0;
+const GAMMA: f32 = 0.01;
 
 pub struct Batch {
     pub vertices: Vec<Point3D<f32>>,
