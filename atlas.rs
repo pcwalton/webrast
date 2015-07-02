@@ -9,19 +9,28 @@ use assets::Asset;
 use euclid::{Point2D, Rect, Size2D};
 use gleam::gl::{self, GLint, GLuint};
 use std::cell::RefCell;
+use std::fs::File;
+use std::io::Write;
 use std::rc::Rc;
 
 pub const WIDTH: GLuint = 1024;
 pub const HEIGHT: GLuint = 1024;
 
 pub struct Atlas {
-    texture: GLuint,
+    pub texture: GLuint,
 }
 
 impl Atlas {
     pub fn new() -> Atlas {
         let texture = gl::gen_textures(1)[0];
         gl::bind_texture(gl::TEXTURE_2D, texture);
+
+        let mut buffer = Vec::new();
+        for y in 0..HEIGHT {
+            for x in 0..WIDTH {
+                buffer.extend([ 0, 0, 255, 255 ].iter());
+            }
+        }
         gl::tex_image_2d(gl::TEXTURE_2D,
                          0,
                          gl::RGBA as GLint,
@@ -30,7 +39,12 @@ impl Atlas {
                          0,
                          gl::RGBA,
                          gl::UNSIGNED_BYTE,
-                         None);
+                         Some(&buffer[..]));
+
+        gl::tex_parameter_i(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as GLint);
+        gl::tex_parameter_i(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as GLint);
+        gl::tex_parameter_i(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as GLint);
+        gl::tex_parameter_i(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as GLint);
         Atlas {
             texture: texture,
         }
@@ -70,6 +84,26 @@ impl Atlas {
                              gl::RGBA,
                              gl::UNSIGNED_BYTE,
                              buffer);
+
+        {
+            let mut file = File::create("atlas.tga").unwrap();
+            let mut header = [ 0; 18 ];
+            header[2] = 2;
+            header[12] = location.rect.size.width as u8;
+            header[13] = (location.rect.size.width >> 8) as u8;
+            header[14] = location.rect.size.height as u8;
+            header[15] = (location.rect.size.height >> 8) as u8;
+            header[16] = 24;
+            file.write(&header).unwrap();
+            for y in 0..(location.rect.size.height as usize) {
+                let y = (location.rect.size.height as usize) - y - 1;
+                for x in 0..(location.rect.size.width as usize) {
+                    let a = buffer[4 * (y * (location.rect.size.width as usize) + x) + 3];
+                    file.write(&[ a, a, a ]).unwrap();
+                }
+            }
+        }
+
         Rc::new(RefCell::new(AtlasHandle {
             location: *location,
         }))

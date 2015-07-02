@@ -16,7 +16,7 @@ use std::mem;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
-const FONT_SIZE_FOR_RASTERIZATION: i32 = 48;
+const FONT_SIZE_FOR_RASTERIZATION: i32 = 96;
 
 pub struct AssetContext {
     freetype_library: Library,
@@ -165,11 +165,11 @@ impl AssetRasterizationStatus {
 
 pub struct AssetManager {
     job_server: Rc<RefCell<JobServer>>,
-    pub atlas: Atlas,
+    pub atlas: Rc<RefCell<Atlas>>,
 }
 
 impl AssetManager {
-    pub fn new(job_server: Rc<RefCell<JobServer>>, atlas: Atlas) -> AssetManager {
+    pub fn new(job_server: Rc<RefCell<JobServer>>, atlas: Rc<RefCell<Atlas>>) -> AssetManager {
         AssetManager {
             job_server: job_server,
             atlas: atlas,

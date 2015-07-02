@@ -5,13 +5,17 @@
 use assets::Asset;
 use atlas::{self, Priority};
 use context::Context;
-use display_list::{Au, BLACK, ClippingRegion, Color, DisplayItem, TRANSPARENT_GREEN, WHITE};
+use display_list::{Au, BLACK, ClippingRegion, Color, DisplayItem, TRANSPARENT_BLACK};
+use display_list::{TRANSPARENT_GREEN, WHITE};
 
 use euclid::{Point2D, Point3D, Rect, Size2D};
 use std::iter;
 
 const NEAR_DEPTH_VALUE: f32 = -0.5;
 const FAR_DEPTH_VALUE: f32 = 0.5;
+
+const BUFFER: f32 = 0.5;
+const GAMMA: f32 = 0.1;
 
 pub struct Batch {
     pub vertices: Vec<Point3D<f32>>,
@@ -61,6 +65,7 @@ impl Batch {
                                    (texture_rect.origin.y as f32) / atlas_height),
                       Size2D::new((texture_rect.size.width as f32) / atlas_width,
                                   (texture_rect.size.height as f32) / atlas_height));
+            //Rect::new(Point2D::new(0.0, 0.0), Size2D::new(1.0, 1.0));
         self.texture_coords.extend([
             texture_rect.origin,
             texture_rect.top_right(),
@@ -134,12 +139,12 @@ impl Batch {
     }
 
     fn add_text(&mut self, context: &mut Context, bounds: &Rect<Au>, asset: &mut Asset) {
-        context.asset_manager.atlas.require_asset(asset, Priority::Retained);
+        context.asset_manager.atlas.borrow_mut().require_asset(asset, Priority::Retained);
         let atlas_handle = asset.rasterization_status.get_atlas_handle();
 
         self.add_vertices_for_rect(context, bounds, NEAR_DEPTH_VALUE);
-        self.add_solid_colors(4, &BLACK);
-        self.add_buffer_gamma(4, 0.5, 0.01);
+        self.add_solid_colors(4, &TRANSPARENT_BLACK);
+        self.add_buffer_gamma(4, BUFFER, GAMMA);
         self.add_texture_coords_for_rect(&atlas_handle.borrow().location.rect);
         self.add_elements_for_counterclockwise_wound_rect();
     }
@@ -157,8 +162,8 @@ impl Batcher {
     }
 
     pub fn add(&mut self, context: &mut Context, display_item: &mut DisplayItem) {
-        self.pending_batch.clear_clip(context);
-        self.pending_batch.add_clip(context, &display_item.base().clip);
+        /*self.pending_batch.clear_clip(context);
+        self.pending_batch.add_clip(context, &display_item.base().clip);*/
 
         match *display_item {
             DisplayItem::SolidColor(ref mut solid_color_display_item) => {

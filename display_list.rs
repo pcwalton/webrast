@@ -17,6 +17,13 @@ pub static BLACK: Color = Color {
     a: 255,
 };
 
+pub static TRANSPARENT_BLACK: Color = Color {
+    r: 0,
+    g: 0,
+    b: 0,
+    a: 0,
+};
+
 pub static TRANSPARENT_GREEN: Color = Color {
     r: 0,
     g: 255,

@@ -55,13 +55,13 @@ pub fn main() {
         window.make_current();
     }
 
-    let atlas = Atlas::new();
+    let atlas = Rc::new(RefCell::new(Atlas::new()));
     let job_server = Rc::new(RefCell::new(JobServer::new(num_cpus::get() as u32)));
-    let asset_manager = AssetManager::new(job_server, atlas);
+    let asset_manager = AssetManager::new(job_server, atlas.clone());
 
     let mut display_list = DisplayList {
         items: vec![
-            DisplayItem::SolidColor(Box::new(SolidColorDisplayItem {
+            /*DisplayItem::SolidColor(Box::new(SolidColorDisplayItem {
                 base: BaseDisplayItem {
                     bounds: Rect::new(Point2D::new(Au::from_px(60), Au::from_px(60)),
                                       Size2D::new(Au::from_px(240), Au::from_px(240))),
@@ -92,7 +92,7 @@ pub fn main() {
                     b: 255,
                     a: 255,
                 },
-            })),
+            })),*/
             DisplayItem::Text(Box::new(TextDisplayItem {
                 base: BaseDisplayItem {
                     bounds: Rect::new(Point2D::new(Au::from_px(0), Au::from_px(0)),
@@ -115,7 +115,7 @@ pub fn main() {
     };
     context.asset_manager.start_rasterizing_assets_in_display_list_as_necessary(&mut display_list);
 
-    let mut draw_context = DrawContext::new();
+    let mut draw_context = DrawContext::new(atlas);
     let mut batcher = Batcher::new();
     for mut item in display_list.items.into_iter() {
         batcher.add(&mut context, &mut item)

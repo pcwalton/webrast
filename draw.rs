@@ -2,10 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+use atlas::Atlas;
 use batch::Batch;
 
-use gleam::gl::{self, GLenum, GLuint};
+use gleam::gl::{self, GLenum, GLint, GLuint};
+use std::cell::RefCell;
 use std::mem;
+use std::rc::Rc;
 
 static VERTEX_SHADER: &'static str = "
     attribute vec3 aVertexPosition;
@@ -41,7 +44,7 @@ static FRAGMENT_SHADER: &'static str = "
         float lAlpha = smoothstep(vBufferGamma[0] - vBufferGamma[1],
                                   vBufferGamma[0] + vBufferGamma[1],
                                   lTextureColor.a);
-        vec4 lColor = vec4(lTextureColor.rgb, lTextureColor.a * lAlpha) + vVertexColor;
+        vec4 lColor = vec4(lTextureColor.rgb, lAlpha) + vVertexColor;
         if (lColor.ga == vec2(0.0, 0.0))
             discard;
         gl_FragColor = lColor;
@@ -70,6 +73,7 @@ impl DrawBuffers {
 pub struct DrawContext {
     program: Program,
     buffers: DrawBuffers,
+    pub atlas: Rc<RefCell<Atlas>>,
 }
 
 struct Program {
@@ -78,6 +82,7 @@ struct Program {
     vertex_color_attribute: GLuint,
     buffer_gamma_attribute: GLuint,
     texture_coord_attribute: GLuint,
+    texture_uniform: GLuint,
 }
 
 fn compile_shader(source_string: &str, shader_type: GLenum) -> GLuint {
@@ -110,6 +115,7 @@ impl Program {
         let vertex_color_attribute = gl::get_attrib_location(program, "aVertexColor");
         let buffer_gamma_attribute = gl::get_attrib_location(program, "aBufferGamma");
         let texture_coord_attribute = gl::get_attrib_location(program, "aTextureCoord");
+        let texture_uniform = gl::get_uniform_location(program, "uTexture");
         gl::enable_vertex_attrib_array(vertex_position_attribute as GLuint);
         gl::enable_vertex_attrib_array(vertex_color_attribute as GLuint);
         gl::enable_vertex_attrib_array(buffer_gamma_attribute as GLuint);
@@ -120,20 +126,23 @@ impl Program {
             vertex_color_attribute: vertex_color_attribute as GLuint,
             buffer_gamma_attribute: buffer_gamma_attribute as GLuint,
             texture_coord_attribute: texture_coord_attribute as GLuint,
+            texture_uniform: texture_uniform as GLuint,
         }
     }
 }
 
 impl DrawContext {
-    pub fn new() -> DrawContext {
+    pub fn new(atlas: Rc<RefCell<Atlas>>) -> DrawContext {
         DrawContext {
             program: Program::new(),
             buffers: DrawBuffers::new(),
+            atlas: atlas,
         }
     }
 
     pub fn init_gl_state(&mut self) {
         gl::use_program(self.program.program);
+        gl::enable(gl::TEXTURE_2D);
         gl::enable(gl::BLEND);
         gl::enable(gl::STENCIL_TEST);
         gl::enable(gl::DEPTH_TEST);
@@ -153,6 +162,10 @@ impl DrawContext {
     }
 
     pub fn draw_batch(&mut self, batch: &Batch) {
+        gl::active_texture(gl::TEXTURE0);
+        gl::bind_texture(gl::TEXTURE_2D, self.atlas.borrow().texture);
+        gl::uniform_1i(self.program.texture_uniform as GLint, 0);
+
         self.buffer_data_for_batch(batch);
 
         let elements_u8 = unsafe {
