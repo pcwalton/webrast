@@ -100,7 +100,7 @@ pub fn main() {
             DisplayItem::Text(Box::new(TextDisplayItem {
                 base: BaseDisplayItem {
                     bounds: Rect::new(Point2D::new(Au::from_px(0), Au::from_px(0)),
-                                      Size2D::new(Au::from_px(100), Au::from_px(100))),
+                                      Size2D::new(Au::from_px(54), Au::from_px(72))),
                     clip: ClippingRegion {
                         main: Rect::new(Point2D::new(Au::from_px(200), Au::from_px(200)),
                                         Size2D::new(Au::from_px(100), Au::from_px(100))),
@@ -109,14 +109,30 @@ pub fn main() {
                 glyph_asset: glyph_asset.clone(),
                 blurred_glyph_asset:
                     Some(asset_manager.create_asset(AssetDescription::BlurredGlyph(
-                                BlurredGlyph::new(20.0)), Some(glyph_asset))),
+                                BlurredGlyph::new(10.0)), Some(glyph_asset))),
             })),
+            /*DisplayItem::SolidColor(Box::new(SolidColorDisplayItem {
+                base: BaseDisplayItem {
+                    bounds: Rect::new(Point2D::new(Au::from_px(0), Au::from_px(0)),
+                                      Size2D::new(Au::from_px(1), Au::from_px(1))),
+                    clip: ClippingRegion {
+                        main: Rect::new(Point2D::new(Au::from_px(200), Au::from_px(200)),
+                                        Size2D::new(Au::from_px(100), Au::from_px(100))),
+                    },
+                },
+                color: Color {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255,
+                },
+            })),*/
         ],
     };
 
     let mut context = Context {
         asset_manager: asset_manager,
-        render_target_size: Size2D::new(800, 600),
+        render_target_size: Size2D::new(800 * 2, 600 * 2),
     };
     context.asset_manager.start_rasterizing_assets_in_display_list_as_necessary(&mut display_list);
 

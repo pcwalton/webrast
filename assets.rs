@@ -18,7 +18,7 @@ use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
 const DISTANCE_FIELD_SIZE: i32 = 96;
-const FONT_SIZE_FOR_RASTERIZATION: i32 = 256;
+const FONT_SIZE_FOR_RASTERIZATION: i32 = 1024;
 const DISTANCE_FIELD_RATIO: f32 =
     (DISTANCE_FIELD_SIZE as f32) / (FONT_SIZE_FOR_RASTERIZATION as f32);
 const GLYPH_BUFFER_SIZE_RATIO: f32 = 0.5;

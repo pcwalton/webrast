@@ -40,11 +40,13 @@ impl Batch {
 
     fn add_vertices_for_rect(&mut self, context: &Context, rect: &Rect<Au>, z_value: f32) {
         let rect = rect.to_normalized_device_position(context);
+        let one_pixel = Point2D::new(1.0 / (context.render_target_size.width as f32),
+                                     1.0 / (context.render_target_size.height as f32));
         self.vertices.extend([
             Point3D::new(rect.origin.x, -rect.origin.y, z_value),
-            Point3D::new(rect.max_x(), -rect.origin.y, z_value),
-            Point3D::new(rect.origin.x, -rect.max_y(), z_value),
-            Point3D::new(rect.max_x(), -rect.max_y(), z_value),
+            Point3D::new(rect.max_x() - one_pixel.x, -rect.origin.y, z_value),
+            Point3D::new(rect.origin.x, -(rect.max_y() - one_pixel.y), z_value),
+            Point3D::new(rect.max_x() - one_pixel.x, -(rect.max_y() - one_pixel.y), z_value),
         ].iter());
     }
 
@@ -62,17 +64,18 @@ impl Batch {
 
     fn add_texture_coords_for_rect(&mut self, texture_rect: &Rect<u32>) {
         let (atlas_width, atlas_height) = (atlas::WIDTH as f32, atlas::HEIGHT as f32);
+        let one_pixel = Point2D::new(1.0 / atlas_width, 1.0 / atlas_height);
         let texture_rect =
-            Rect::new(Point2D::new((texture_rect.origin.x as f32) / atlas_width,
-                                   (texture_rect.origin.y as f32) / atlas_height),
+            Rect::new(Point2D::new((texture_rect.origin.x as f32 + 0.5) / atlas_width,
+                                   (texture_rect.origin.y as f32 + 0.5) / atlas_height),
                       Size2D::new((texture_rect.size.width as f32) / atlas_width,
                                   (texture_rect.size.height as f32) / atlas_height));
             //Rect::new(Point2D::new(0.0, 0.0), Size2D::new(1.0, 1.0));
         self.texture_coords.extend([
             texture_rect.origin,
-            texture_rect.top_right(),
-            texture_rect.bottom_left(),
-            texture_rect.bottom_right(),
+            Point2D::new(texture_rect.max_x() - one_pixel.x, texture_rect.origin.y),
+            Point2D::new(texture_rect.origin.x, texture_rect.max_y() - one_pixel.y),
+            Point2D::new(texture_rect.max_x() - one_pixel.x, texture_rect.max_y() - one_pixel.y),
         ].iter());
     }
 

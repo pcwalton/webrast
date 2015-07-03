@@ -55,6 +55,12 @@ pub fn approximate_gaussian_blur_with_distance_field(distance_field: &[u8],
                 let index = distance + ((precomputed_values.len() as i32) - 1) / 2;
                 f32::round(precomputed_values[index as usize] as f32 * 255.0) as u8
             };
+            /*println!("{}", color);
+            let color = if distance < 0.0 {
+                0
+            } else {
+                255
+            };*/
 
             result.extend([ color, color, color, color ].iter())
         }

@@ -12,7 +12,7 @@ use std::f32;
 
 pub const BUFFER: u8 = 192;
 
-pub const GLYPH_DISTANCE_SCALING_FACTOR: f32 = 10.0;
+pub const GLYPH_DISTANCE_SCALING_FACTOR: f32 = 2.0;
 const ARC_DISTANCE_SCALING_FACTOR: f32 = 256.0;
 
 pub fn build_distance_field_for_glyph(data: &[u8],
