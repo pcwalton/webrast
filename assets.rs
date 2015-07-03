@@ -3,8 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 use atlas::{Atlas, AtlasHandle};
+use blur;
 use display_list::{DisplayItem, DisplayList};
-use distance_field;
+use distance_field::{self, GLYPH_DISTANCE_SCALING_FACTOR};
 use job_server::JobServer;
 
 use euclid::Size2D;
@@ -38,18 +39,87 @@ impl AssetContext {
 
 pub struct Asset {
     description: AssetDescription,
+    derived_from: Option<Rc<RefCell<Asset>>>,
     pub rasterization_status: AssetRasterizationStatus,
+}
+
+impl Asset {
+    pub fn is_pending_or_waiting_for_dependency(&self) -> bool {
+        match self.rasterization_status {
+            AssetRasterizationStatus::Pending | AssetRasterizationStatus::WaitingForDependency => {
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_in_atlas(&self) -> bool {
+        match self.rasterization_status {
+            AssetRasterizationStatus::InAtlas(..) => true,
+            _ => false,
+        }
+    }
+
+    pub fn get_rasterization(&mut self) -> &mut AssetRasterization {
+        let rasterized_asset = match self.rasterization_status {
+            AssetRasterizationStatus::Pending => {
+                panic!("Can't get a pending asset; begin rasterizing it first!")
+            }
+            AssetRasterizationStatus::WaitingForDependency => {
+                panic!("Can't get an asset waiting for its dependency; rasterize its dependency \
+                        first!");
+            }
+            AssetRasterizationStatus::InMemory(ref mut rasterized_asset) |
+            AssetRasterizationStatus::InAtlas(ref mut rasterized_asset, _) => {
+                return rasterized_asset
+            }
+            AssetRasterizationStatus::Waiting(ref mut receiver) => receiver.recv().unwrap(),
+        };
+        self.rasterization_status = AssetRasterizationStatus::InMemory(rasterized_asset);
+        match self.rasterization_status {
+            AssetRasterizationStatus::InMemory(ref mut rasterized_asset) => rasterized_asset,
+            _ => unreachable!()
+        }
+    }
+
+    pub fn set_atlas_handle(&mut self, handle: Rc<RefCell<AtlasHandle>>) {
+        let status = mem::replace(&mut self.rasterization_status,
+                                  AssetRasterizationStatus::Pending);
+        let rasterized_asset = match status {
+            AssetRasterizationStatus::Pending |
+            AssetRasterizationStatus::Waiting(_) |
+            AssetRasterizationStatus::WaitingForDependency => {
+                panic!("Can't set an asset handle for an asset that's pending or waiting!")
+            }
+            AssetRasterizationStatus::InMemory(rasterized_asset) |
+            AssetRasterizationStatus::InAtlas(rasterized_asset, _) => rasterized_asset,
+        };
+        self.rasterization_status = AssetRasterizationStatus::InAtlas(rasterized_asset, handle)
+    }
+
+    pub fn get_atlas_handle(&self) -> Rc<RefCell<AtlasHandle>> {
+        if let AssetRasterizationStatus::InAtlas(_, ref asset_handle) = self.rasterization_status {
+            return (*asset_handle).clone()
+        }
+        panic!("No asset handle available for this asset!")
+    }
 }
 
 #[derive(Clone)]
 pub enum AssetDescription {
     Glyph(Glyph),
+    BlurredGlyph(BlurredGlyph),
 }
 
 impl AssetDescription {
-    pub fn rasterize(&self, context: &mut AssetContext) -> AssetRasterization {
+    pub fn rasterize(&self, context: &mut AssetContext, dependency: Option<&AssetRasterization>)
+                     -> AssetRasterization {
         match *self {
             AssetDescription::Glyph(ref glyph) => glyph.rasterize(context),
+            AssetDescription::BlurredGlyph(ref blurred_glyph) => {
+                blurred_glyph.rasterize(context,
+                                        dependency.expect("Blurred glyphs need a glyph to blur!"))
+            }
         }
     }
 }
@@ -92,10 +162,10 @@ impl Glyph {
         let distance_field_size =
             Size2D::new(glyph_size_in_field.width + extra_buffer_size.width,
                         glyph_size_in_field.height + extra_buffer_size.height);
-        let distance_field = distance_field::build(buffer,
-                                                   &glyph_size,
-                                                   &glyph_size_in_field,
-                                                   &distance_field_size);
+        let distance_field = distance_field::build_distance_field_for_glyph(buffer,
+                                                                            &glyph_size,
+                                                                            &glyph_size_in_field,
+                                                                            &distance_field_size);
 
         AssetRasterization {
             data: distance_field,
@@ -104,6 +174,33 @@ impl Glyph {
     }
 }
 
+#[derive(Clone)]
+pub struct BlurredGlyph {
+    pub sigma: f32,
+}
+
+impl BlurredGlyph {
+    pub fn new(sigma: f32) -> BlurredGlyph {
+        BlurredGlyph {
+            sigma: sigma,
+        }
+    }
+
+    pub fn rasterize(&self, context: &mut AssetContext, dependency: &AssetRasterization)
+                     -> AssetRasterization {
+        let data =
+            blur::approximate_gaussian_blur_with_distance_field(&dependency.data[..],
+                                                                GLYPH_DISTANCE_SCALING_FACTOR,
+                                                                &dependency.size,
+                                                                self.sigma);
+        AssetRasterization {
+            data: data,
+            size: dependency.size,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct AssetRasterization {
     pub data: Vec<u8>,
     pub size: Size2D<u32>,
@@ -111,63 +208,10 @@ pub struct AssetRasterization {
 
 pub enum AssetRasterizationStatus {
     Pending,
+    WaitingForDependency,
     Waiting(Receiver<AssetRasterization>),
     InMemory(AssetRasterization),
     InAtlas(AssetRasterization, Rc<RefCell<AtlasHandle>>),
-}
-
-impl AssetRasterizationStatus {
-    pub fn is_pending(&self) -> bool {
-        match *self {
-            AssetRasterizationStatus::Pending => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_in_atlas(&self) -> bool {
-        match *self {
-            AssetRasterizationStatus::InAtlas(..) => true,
-            _ => false,
-        }
-    }
-
-    pub fn get_rasterization(&mut self) -> &mut AssetRasterization {
-        let rasterized_asset = match *self {
-            AssetRasterizationStatus::Pending => {
-                panic!("Can't get a pending asset; begin rasterizing it first!")
-            }
-            AssetRasterizationStatus::InMemory(ref mut rasterized_asset) |
-            AssetRasterizationStatus::InAtlas(ref mut rasterized_asset, _) => {
-                return rasterized_asset
-            }
-            AssetRasterizationStatus::Waiting(ref mut receiver) => receiver.recv().unwrap(),
-        };
-        *self = AssetRasterizationStatus::InMemory(rasterized_asset);
-        match *self {
-            AssetRasterizationStatus::InMemory(ref mut rasterized_asset) => rasterized_asset,
-            _ => unreachable!()
-        }
-    }
-
-    pub fn set_atlas_handle(&mut self, handle: Rc<RefCell<AtlasHandle>>) {
-        let status = mem::replace(&mut *self, AssetRasterizationStatus::Pending);
-        let rasterized_asset = match status {
-            AssetRasterizationStatus::Pending |
-            AssetRasterizationStatus::Waiting(_) => {
-                panic!("Can't set an asset handle for an asset that's pending or waiting!")
-            }
-            AssetRasterizationStatus::InMemory(rasterized_asset) |
-            AssetRasterizationStatus::InAtlas(rasterized_asset, _) => rasterized_asset,
-        };
-        *self = AssetRasterizationStatus::InAtlas(rasterized_asset, handle)
-    }
-
-    pub fn get_atlas_handle(&self) -> Rc<RefCell<AtlasHandle>> {
-        if let AssetRasterizationStatus::InAtlas(_, ref asset_handle) = *self {
-            return (*asset_handle).clone()
-        }
-        panic!("No asset handle available for this asset!")
-    }
 }
 
 pub struct AssetManager {
@@ -183,18 +227,49 @@ impl AssetManager {
         }
     }
 
-    pub fn create_asset(&self, description: AssetDescription) -> Rc<RefCell<Asset>> {
+    pub fn create_asset(&self,
+                        description: AssetDescription,
+                        derived_from: Option<Rc<RefCell<Asset>>>)
+                        -> Rc<RefCell<Asset>> {
         // TODO(pcwalton): Maintain a map of assets so we don't rasterize things multiple times.
         Rc::new(RefCell::new(Asset {
             description: description,
             rasterization_status: AssetRasterizationStatus::Pending,
+            derived_from: derived_from,
         }))
     }
 
     pub fn start_rasterizing_asset_if_necessary(&self, asset: &mut Asset) {
-        if asset.rasterization_status.is_pending() {
-            asset.rasterization_status = AssetRasterizationStatus::Waiting(
-                self.job_server.borrow_mut().rasterize_asset(asset.description.clone()))
+        if !asset.is_pending_or_waiting_for_dependency() {
+            return
+        }
+
+        let derived_from = match asset.derived_from {
+            Some(ref derived_from) => derived_from,
+            None => {
+                asset.rasterization_status = AssetRasterizationStatus::Waiting(
+                    self.job_server.borrow_mut().rasterize_asset(asset.description.clone(), None));
+                return
+            }
+        };
+
+        match derived_from.borrow().rasterization_status {
+            AssetRasterizationStatus::Pending => {
+                panic!("Can't rasterize an asset that's derived from a pending one; start
+                        rasterizing the asset it's derived from first!")
+            }
+            AssetRasterizationStatus::Waiting(_) => {
+                asset.rasterization_status = AssetRasterizationStatus::WaitingForDependency
+            }
+            AssetRasterizationStatus::WaitingForDependency => {}
+            AssetRasterizationStatus::InMemory(ref rasterization) |
+            AssetRasterizationStatus::InAtlas(ref rasterization, _) => {
+                asset.rasterization_status = AssetRasterizationStatus::Waiting(
+                    self.job_server
+                        .borrow_mut()
+                        .rasterize_asset(asset.description.clone(),
+                                         Some((*rasterization).clone())));
+            }
         }
     }
 
@@ -204,8 +279,12 @@ impl AssetManager {
             match *item {
                 DisplayItem::SolidColor(_) => {}
                 DisplayItem::Text(ref mut text_display_item) => {
-                    self.start_rasterizing_asset_if_necessary(&mut *text_display_item.asset
-                                                                                     .borrow_mut())
+                    self.start_rasterizing_asset_if_necessary(
+                        &mut *text_display_item.glyph_asset.borrow_mut());
+                    if let Some(ref blurred_glyph_asset) = text_display_item.blurred_glyph_asset {
+                        self.start_rasterizing_asset_if_necessary(
+                            &mut *blurred_glyph_asset.borrow_mut())
+                    }
                 }
             }
         }

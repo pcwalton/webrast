@@ -22,3 +22,5 @@ pub mod display_list;
 pub mod draw;
 pub mod job_server;
 
+mod blur;
+

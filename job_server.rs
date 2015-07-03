@@ -8,7 +8,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
 enum Job {
-    RasterizeAsset(AssetDescription, Sender<AssetRasterization>),
+    RasterizeAsset(AssetDescription, Option<AssetRasterization>, Sender<AssetRasterization>),
     Exit,
 }
 
@@ -31,10 +31,13 @@ impl JobServer {
         }
     }
 
-    pub fn rasterize_asset(&mut self, asset_description: AssetDescription)
+    pub fn rasterize_asset(&mut self,
+                           asset_description: AssetDescription,
+                           dependency: Option<AssetRasterization>)
                            -> Receiver<AssetRasterization> {
         let (sender, receiver) = mpsc::channel();
         self.workers[self.next_worker as usize].send(Job::RasterizeAsset(asset_description,
+                                                                         dependency,
                                                                          sender)).unwrap();
         self.next_worker = (self.next_worker + 1) % (self.workers.len() as u32);
         receiver
@@ -46,8 +49,8 @@ fn worker_main(receiver: Receiver<Job>) {
     loop {
         match receiver.recv().unwrap() {
             Job::Exit => return,
-            Job::RasterizeAsset(asset, sender) => {
-                sender.send(asset.rasterize(&mut asset_context)).unwrap()
+            Job::RasterizeAsset(asset, dependency, sender) => {
+                sender.send(asset.rasterize(&mut asset_context, dependency.as_ref())).unwrap()
             }
         }
     }

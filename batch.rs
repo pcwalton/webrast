@@ -6,10 +6,11 @@ use assets::Asset;
 use atlas::{self, Priority};
 use context::Context;
 use display_list::{Au, BLACK, ClippingRegion, Color, DisplayItem, TRANSPARENT_BLACK};
-use display_list::{TRANSPARENT_GREEN, WHITE};
+use display_list::{TRANSPARENT_GREEN, TextDisplayItem, WHITE};
 use distance_field;
 
 use euclid::{Point2D, Point3D, Rect, Size2D};
+use std::cell::RefCell;
 use std::iter;
 
 const NEAR_DEPTH_VALUE: f32 = -0.5;
@@ -139,15 +140,38 @@ impl Batch {
         self.add_elements_for_counterclockwise_wound_rect();
     }
 
-    fn add_text(&mut self, context: &mut Context, bounds: &Rect<Au>, asset: &mut Asset) {
-        context.asset_manager.atlas.borrow_mut().require_asset(asset, Priority::Retained);
-        let atlas_handle = asset.rasterization_status.get_atlas_handle();
+    fn add_text(&mut self,
+                context: &mut Context,
+                bounds: &Rect<Au>,
+                glyph_asset: &RefCell<Asset>,
+                blurred_glyph_asset: Option<&mut Asset>) {
+        context.asset_manager.atlas.borrow_mut().require_asset(&mut *glyph_asset.borrow_mut(),
+                                                               Priority::Retained);
+        match blurred_glyph_asset {
+            None => {
+                let atlas_handle = glyph_asset.borrow().get_atlas_handle();
 
-        self.add_vertices_for_rect(context, bounds, NEAR_DEPTH_VALUE);
-        self.add_solid_colors(4, &TRANSPARENT_BLACK);
-        self.add_buffer_gamma(4, BUFFER, GAMMA);
-        self.add_texture_coords_for_rect(&atlas_handle.borrow().location.rect);
-        self.add_elements_for_counterclockwise_wound_rect();
+                self.add_vertices_for_rect(context, bounds, NEAR_DEPTH_VALUE);
+                self.add_solid_colors(4, &TRANSPARENT_BLACK);
+                self.add_buffer_gamma(4, BUFFER, GAMMA);
+                self.add_texture_coords_for_rect(&atlas_handle.borrow().location.rect);
+                self.add_elements_for_counterclockwise_wound_rect();
+            }
+            Some(blurred_glyph_asset) => {
+                // TODO(pcwalton): We should have a service that automatically starts rasterizing
+                // dependencies so we don't have to block on it here!
+                context.asset_manager.start_rasterizing_asset_if_necessary(blurred_glyph_asset);
+                context.asset_manager.atlas.borrow_mut().require_asset(blurred_glyph_asset,
+                                                                       Priority::Retained);
+                let atlas_handle = blurred_glyph_asset.get_atlas_handle();
+
+                self.add_vertices_for_rect(context, bounds, NEAR_DEPTH_VALUE);
+                self.add_solid_colors(4, &TRANSPARENT_BLACK);
+                self.add_dummy_buffer_gamma(4);
+                self.add_texture_coords_for_rect(&atlas_handle.borrow().location.rect);
+                self.add_elements_for_counterclockwise_wound_rect();
+            }
+        }
     }
 }
 
@@ -173,9 +197,28 @@ impl Batcher {
                                                         &solid_color_display_item.color);
             }
             DisplayItem::Text(ref mut text_display_item) => {
-                self.pending_batch.add_text(context,
-                                            &text_display_item.base.bounds,
-                                            &mut *text_display_item.asset.borrow_mut());
+                let text_display_item = &mut **text_display_item;
+                match *text_display_item {
+                    TextDisplayItem {
+                        base: ref mut base,
+                        glyph_asset: ref mut glyph_asset,
+                        blurred_glyph_asset: None,
+                        ..
+                    } => {
+                        self.pending_batch.add_text(context, &base.bounds, &*glyph_asset, None);
+                    }
+                    TextDisplayItem {
+                        base: ref mut base,
+                        glyph_asset: ref mut glyph_asset,
+                        blurred_glyph_asset: Some(ref mut blurred_glyph_asset),
+                        ..
+                    } => {
+                        self.pending_batch.add_text(context,
+                                                    &base.bounds,
+                                                    &*glyph_asset,
+                                                    Some(&mut blurred_glyph_asset.borrow_mut()));
+                    }
+                }
             }
         }
     }

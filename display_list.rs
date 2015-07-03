@@ -76,7 +76,8 @@ pub struct SolidColorDisplayItem {
 #[derive(Clone)]
 pub struct TextDisplayItem {
     pub base: BaseDisplayItem,
-    pub asset: Rc<RefCell<Asset>>,
+    pub glyph_asset: Rc<RefCell<Asset>>,
+    pub blurred_glyph_asset: Option<Rc<RefCell<Asset>>>,
 }
 
 #[derive(Copy, Clone, Debug)]

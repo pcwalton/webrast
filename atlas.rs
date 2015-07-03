@@ -12,6 +12,7 @@ use std::cell::RefCell;
 use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
+use std::sync::atomic::{ATOMIC_USIZE_INIT, AtomicUsize, Ordering};
 
 pub const WIDTH: GLuint = 1024;
 pub const HEIGHT: GLuint = 1024;
@@ -51,17 +52,17 @@ impl Atlas {
     }
 
     pub fn require_asset(&mut self, asset: &mut Asset, priority: Priority) {
-        if asset.rasterization_status.is_in_atlas() {
+        if asset.is_in_atlas() {
             return
         }
 
         let handle = {
-            let rasterization = asset.rasterization_status.get_rasterization();
+            let rasterization = asset.get_rasterization();
             let location = self.allocate(priority, &rasterization.size);
             self.upload(&location, &rasterization.data[..])
         };
 
-        asset.rasterization_status.set_atlas_handle(handle);
+        asset.set_atlas_handle(handle);
     }
 
     fn allocate(&mut self, _: Priority, size: &Size2D<u32>) -> AtlasLocation {
@@ -85,22 +86,10 @@ impl Atlas {
                              buffer);
 
         {
-            let mut file = File::create("atlas.tga").unwrap();
-            let mut header = [ 0; 18 ];
-            header[2] = 2;
-            header[12] = location.rect.size.width as u8;
-            header[13] = (location.rect.size.width >> 8) as u8;
-            header[14] = location.rect.size.height as u8;
-            header[15] = (location.rect.size.height >> 8) as u8;
-            header[16] = 24;
-            file.write(&header).unwrap();
-            for y in 0..(location.rect.size.height as usize) {
-                let y = (location.rect.size.height as usize) - y - 1;
-                for x in 0..(location.rect.size.width as usize) {
-                    let a = buffer[4 * (y * (location.rect.size.width as usize) + x) + 3];
-                    file.write(&[ a, a, a ]).unwrap();
-                }
-            }
+            static ATLAS_INDEX: AtomicUsize = ATOMIC_USIZE_INIT;
+
+            let value = ATLAS_INDEX.fetch_add(1, Ordering::SeqCst);
+            write_tga(&format!("atlas{}.tga", value), buffer, &location.rect.size);
         }
 
         Rc::new(RefCell::new(AtlasHandle {
@@ -124,5 +113,24 @@ pub struct AtlasLocation {
 pub enum Priority {
     /// An item in the retained display list needs this asset.
     Retained = 0,
+}
+
+pub fn write_tga(name: &str, buffer: &[u8], size: &Size2D<u32>) {
+    let mut file = File::create(name).unwrap();
+    let mut header = [ 0; 18 ];
+    header[2] = 2;
+    header[12] = size.width as u8;
+    header[13] = (size.width >> 8) as u8;
+    header[14] = size.height as u8;
+    header[15] = (size.height >> 8) as u8;
+    header[16] = 24;
+    file.write(&header).unwrap();
+    for y in 0..(size.height as usize) {
+        let y = (size.height as usize) - y - 1;
+        for x in 0..(size.width as usize) {
+            let a = buffer[4 * (y * (size.width as usize) + x) + 3];
+            file.write(&[ a, a, a ]).unwrap();
+        }
+    }
 }
 

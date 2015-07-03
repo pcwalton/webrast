@@ -4,7 +4,7 @@
 
 extern crate glutin;
 
-use assets::{AssetDescription, AssetManager, Glyph};
+use assets::{AssetDescription, AssetManager, BlurredGlyph, Glyph};
 use atlas::Atlas;
 use batch::Batcher;
 use context::Context;
@@ -59,6 +59,10 @@ pub fn main() {
     let job_server = Rc::new(RefCell::new(JobServer::new(num_cpus::get() as u32)));
     let asset_manager = AssetManager::new(job_server, atlas.clone());
 
+    let glyph_asset =
+        asset_manager.create_asset(AssetDescription::Glyph(Glyph::new(FONT_PATH.to_string(),
+                                                                      'S')),
+                                   None);
     let mut display_list = DisplayList {
         items: vec![
             /*DisplayItem::SolidColor(Box::new(SolidColorDisplayItem {
@@ -102,9 +106,10 @@ pub fn main() {
                                         Size2D::new(Au::from_px(100), Au::from_px(100))),
                     },
                 },
-                asset: asset_manager.create_asset(AssetDescription::Glyph(Glyph::new(
-                                   FONT_PATH.to_string(),
-                                   'S'))),
+                glyph_asset: glyph_asset.clone(),
+                blurred_glyph_asset:
+                    Some(asset_manager.create_asset(AssetDescription::BlurredGlyph(
+                                BlurredGlyph::new(20.0)), Some(glyph_asset))),
             })),
         ],
     };

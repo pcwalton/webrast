@@ -12,11 +12,14 @@ use std::f32;
 
 pub const BUFFER: u8 = 192;
 
-pub fn build(data: &[u8],
-             glyph_size: &Size2D<u32>,
-             glyph_size_in_field: &Size2D<u32>,
-             field_size: &Size2D<u32>)
-             -> Vec<u8> {
+pub const GLYPH_DISTANCE_SCALING_FACTOR: f32 = 10.0;
+const ARC_DISTANCE_SCALING_FACTOR: f32 = 256.0;
+
+pub fn build_distance_field_for_glyph(data: &[u8],
+                                      glyph_size: &Size2D<u32>,
+                                      glyph_size_in_field: &Size2D<u32>,
+                                      field_size: &Size2D<u32>)
+                                      -> Vec<u8> {
     let mut result = Vec::with_capacity((field_size.width * field_size.height * 4) as usize);
     let offset_from_field_to_glyph =
         Point2D::new(((field_size.width - glyph_size_in_field.width) / 2),
@@ -53,9 +56,10 @@ pub fn build(data: &[u8],
                 }
             }
             let mut value = if inside_glyph {
-                (BUFFER as i64 + (((distance * 10.0) - 10.0) as i64))
+                (BUFFER as i64 + (((distance * GLYPH_DISTANCE_SCALING_FACTOR) -
+                                   GLYPH_DISTANCE_SCALING_FACTOR) as i64))
             } else {
-                (BUFFER as i64 - ((distance * 10.0) as i64))
+                (BUFFER as i64 - ((distance * GLYPH_DISTANCE_SCALING_FACTOR) as i64))
             };
             if value < 0 {
                 value = 0
@@ -63,6 +67,28 @@ pub fn build(data: &[u8],
                 value = 255
             }
             let value = value as u8;
+            result.extend([ 255, 255, 255, value ].iter());
+        }
+    }
+    result
+}
+
+pub fn build_distance_field_for_filled_arc(size: u32, radius: u32) -> Vec<u8> {
+    let mut result = Vec::with_capacity((size * size * 4) as usize);
+    let radius = radius as f32;
+    for y in 0..size {
+        for x in 0..size {
+            let delta = Point2D::new(size - x, size - y);
+            let distance_to_center = f32::sqrt((delta.y * delta.y + delta.x * delta.x) as f32);
+            let distance = distance_to_center - radius;
+            let mut scaled_distance =
+                (1.0 - distance / ARC_DISTANCE_SCALING_FACTOR) * (BUFFER as f32);
+            if scaled_distance < 0.0 {
+                scaled_distance = 0.0
+            } else if scaled_distance > 255.0 {
+                scaled_distance = 255.0
+            }
+            let value = scaled_distance as u8;
             result.extend([ 255, 255, 255, value ].iter());
         }
     }

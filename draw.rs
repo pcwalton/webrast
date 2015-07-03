@@ -44,7 +44,7 @@ static FRAGMENT_SHADER: &'static str = "
         float lAlpha = smoothstep(vBufferGamma[0] - vBufferGamma[1],
                                   vBufferGamma[0] + vBufferGamma[1],
                                   lTextureColor.a);
-        vec4 lColor = vec4(1.0, 1.0, 1.0, lAlpha) + vVertexColor;
+        vec4 lColor = vec4(lTextureColor.rgb, lAlpha) + vVertexColor;
         if (lColor.ga == vec2(0.0, 0.0))
             discard;
         gl_FragColor = lColor;
