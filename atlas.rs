@@ -3,12 +3,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 //! Texture atlas management.
+//!
+//! Currently, the bin packing algorithm is the simple one described here:
+//!
+//!     http://www.blackpawn.com/texts/lightmaps/default.html
 
 use assets::Asset;
 
 use euclid::{Point2D, Rect, Size2D};
 use gleam::gl::{self, GLint, GLuint};
 use std::cell::RefCell;
+use std::cmp;
 use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
@@ -19,6 +24,7 @@ pub const HEIGHT: GLuint = 1024;
 
 pub struct Atlas {
     pub texture: GLuint,
+    root_bin: Bin,
 }
 
 impl Atlas {
@@ -48,6 +54,7 @@ impl Atlas {
         gl::tex_parameter_i(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as GLint);
         Atlas {
             texture: texture,
+            root_bin: Bin::new(&Rect::new(Point2D::new(0, 0), Size2D::new(WIDTH, HEIGHT))),
         }
     }
 
@@ -66,8 +73,11 @@ impl Atlas {
     }
 
     fn allocate(&mut self, _: Priority, size: &Size2D<u32>) -> AtlasLocation {
+        // TODO(pcwalton): Evict old objects.
+        let point = self.root_bin.insert(size).expect("Atlas out of space!");
+        println!("placing object at {:?}", point);
         AtlasLocation {
-            rect: Rect::new(Point2D::new(0, 0), *size),
+            rect: Rect::new(point, *size),
         }
     }
 
@@ -113,6 +123,62 @@ pub struct AtlasLocation {
 pub enum Priority {
     /// An item in the retained display list needs this asset.
     Retained = 0,
+}
+
+struct Bin {
+    children: Option<[Box<Bin>; 2]>,
+    rect: Rect<u32>,
+    full: bool,
+}
+
+impl Bin {
+    fn new(rect: &Rect<u32>) -> Bin {
+        Bin {
+            children: None,
+            rect: *rect,
+            full: false,
+        }
+    }
+
+    fn insert(&mut self, size: &Size2D<u32>) -> Option<Point2D<u32>> {
+        if let Some(ref mut children) = self.children {
+            let (left, right) = children.split_at_mut(1);
+            let (left, right) = (&mut left[0], &mut right[0]);
+            return left.insert(size).or_else(|| right.insert(size))
+        }
+
+        if self.full {
+            return None
+        }
+
+        match (self.rect.size.width.cmp(&size.width), self.rect.size.height.cmp(&size.height)) {
+            (cmp::Ordering::Less, _) | (_, cmp::Ordering::Less) => return None,
+            (cmp::Ordering::Equal, cmp::Ordering::Equal) => {
+                self.full = true;
+                return Some(self.rect.origin)
+            }
+            _ => {}
+        }
+
+        let left_child = Box::new(Bin::new(&Rect::new(self.rect.origin, *size)));
+
+        let extra_width = self.rect.size.width - size.width;
+        let extra_height = self.rect.size.height - size.height;
+        let right_child = if extra_width > extra_height {
+            Box::new(Bin::new(&Rect::new(Point2D::new(self.rect.origin.x + size.width,
+                                                      self.rect.origin.y),
+                                         Size2D::new(self.rect.size.width - size.width,
+                                                     self.rect.size.height))))
+        } else {
+            Box::new(Bin::new(&Rect::new(Point2D::new(self.rect.origin.x,
+                                                      self.rect.origin.y + size.height),
+                                         Size2D::new(self.rect.size.width,
+                                                     self.rect.size.height - size.height))))
+        };
+
+        self.children = Some([ left_child, right_child ]);
+        self.children.as_mut().unwrap()[0].insert(size)
+    }
 }
 
 pub fn write_tga(name: &str, buffer: &[u8], size: &Size2D<u32>) {

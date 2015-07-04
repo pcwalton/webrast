@@ -132,7 +132,7 @@ pub fn main() {
 
     let mut context = Context {
         asset_manager: asset_manager,
-        render_target_size: Size2D::new(800 * 2, 600 * 2),
+        render_target_size: Size2D::new(800, 600),
     };
     context.asset_manager.start_rasterizing_assets_in_display_list_as_necessary(&mut display_list);
 
