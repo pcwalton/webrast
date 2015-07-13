@@ -10,6 +10,8 @@ use euclid::{Point2D, Size2D};
 use std::cmp;
 use std::f32;
 
+use assets::ArcMode;
+
 pub const BUFFER: u8 = 192;
 
 pub const GLYPH_DISTANCE_SCALING_FACTOR: f32 = 2.0;
@@ -73,14 +75,18 @@ pub fn build_distance_field_for_glyph(data: &[u8],
     result
 }
 
-pub fn build_distance_field_for_filled_arc(size: u32, radius: u32) -> Vec<u8> {
+pub fn build_distance_field_for_arc(size: u32, radius: u32, mode: ArcMode) -> Vec<u8> {
     let mut result = Vec::with_capacity((size * size * 4) as usize);
     let radius = radius as f32;
     for y in 0..size {
         for x in 0..size {
             let delta = Point2D::new(size - x, size - y);
             let distance_to_center = f32::sqrt((delta.y * delta.y + delta.x * delta.x) as f32);
-            let distance = distance_to_center - radius;
+            let distance = match mode {
+                ArcMode::FilledArc => distance_to_center - radius,
+                ArcMode::InvertedFilledArc => radius - distance_to_center,
+            };
+
             let mut scaled_distance =
                 (1.0 - distance / ARC_DISTANCE_SCALING_FACTOR) * (BUFFER as f32);
             if scaled_distance < 0.0 {
@@ -88,6 +94,8 @@ pub fn build_distance_field_for_filled_arc(size: u32, radius: u32) -> Vec<u8> {
             } else if scaled_distance > 255.0 {
                 scaled_distance = 255.0
             }
+
+
             let value = scaled_distance as u8;
             result.extend([ 255, 255, 255, value ].iter());
         }

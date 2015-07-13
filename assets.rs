@@ -17,6 +17,9 @@ use std::mem;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
+pub const ARC_RADIUS: u32 = 64;
+
+const ARC_SIZE: u32 = 128;
 const DISTANCE_FIELD_SIZE: i32 = 96;
 const FONT_SIZE_FOR_RASTERIZATION: i32 = 1024;
 const DISTANCE_FIELD_RATIO: f32 =
@@ -109,6 +112,7 @@ impl Asset {
 pub enum AssetDescription {
     Glyph(Glyph),
     BlurredGlyph(BlurredGlyph),
+    Arc(ArcAsset),
 }
 
 impl AssetDescription {
@@ -120,6 +124,7 @@ impl AssetDescription {
                 blurred_glyph.rasterize(context,
                                         dependency.expect("Blurred glyphs need a glyph to blur!"))
             }
+            AssetDescription::Arc(ref arc) => arc.rasterize(context),
         }
     }
 }
@@ -198,6 +203,27 @@ impl BlurredGlyph {
             size: dependency.size,
         }
     }
+}
+
+#[derive(Clone)]
+pub struct ArcAsset {
+    pub mode: ArcMode,
+}
+
+impl ArcAsset {
+    fn rasterize(&self, context: &mut AssetContext) -> AssetRasterization {
+        let data = distance_field::build_distance_field_for_arc(ARC_SIZE, ARC_RADIUS, self.mode);
+        AssetRasterization {
+            data: data,
+            size: Size2D::new(ARC_SIZE, ARC_SIZE),
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq)]
+pub enum ArcMode {
+    FilledArc,
+    InvertedFilledArc,
 }
 
 #[derive(Clone)]
@@ -285,6 +311,12 @@ impl AssetManager {
                         self.start_rasterizing_asset_if_necessary(
                             &mut *blurred_glyph_asset.borrow_mut())
                     }
+                }
+                DisplayItem::Border(ref mut border_display_item) => {
+                    self.start_rasterizing_asset_if_necessary(
+                        &mut *border_display_item.arc_asset.borrow_mut());
+                    self.start_rasterizing_asset_if_necessary(
+                        &mut *border_display_item.inverted_arc_asset.borrow_mut());
                 }
             }
         }

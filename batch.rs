@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use assets::Asset;
+use assets::{ARC_RADIUS, Asset};
 use atlas::{self, Priority};
 use context::Context;
 use display_list::{Au, BLACK, ClippingRegion, Color, DisplayItem, TRANSPARENT_BLACK};
@@ -17,7 +17,7 @@ const NEAR_DEPTH_VALUE: f32 = -0.5;
 const FAR_DEPTH_VALUE: f32 = 0.5;
 
 const BUFFER: f32 = (distance_field::BUFFER as f32) / 255.0;
-const GAMMA: f32 = 0.01;
+const GAMMA: f32 = 0.005;
 
 pub struct Batch {
     pub vertices: Vec<Point3D<f32>>,
@@ -176,6 +176,90 @@ impl Batch {
             }
         }
     }
+
+    fn add_border(&mut self,
+                  context: &mut Context,
+                  bounds: &Rect<Au>,
+                  width: Au,
+                  color: &Color,
+                  radius: Au,
+                  arc_asset: &mut Asset,
+                  inverted_arc_asset: &mut Asset) {
+        context.asset_manager.atlas.borrow_mut().require_asset(arc_asset, Priority::Retained);
+        context.asset_manager.atlas.borrow_mut().require_asset(inverted_arc_asset,
+                                                               Priority::Retained);
+
+        let arc_atlas_handle = arc_asset.get_atlas_handle();
+        let inverted_arc_atlas_handle = inverted_arc_asset.get_atlas_handle();
+
+        // +---+-------+       +-+---+
+        // |  /|#######|###    |1| 2 |
+        // | /#|#######|###    +-+---+
+        // |/##|#######|###    |  3  |
+        // +---+-------+###    +---+-+
+        // |###########|###    | 4 |5|
+        // |###########|###    +---+-+
+        // |###########|###
+        // +-------+---+
+        // |#######|##/|
+        // |#######|#/ |
+        // |#######|/  |
+        // +-------+---+
+        //  #######
+        //  #######
+        //  #######
+
+        // 1
+        let outer_corner_rect = Rect::new(bounds.origin, Size2D::new(radius, radius));
+        self.add_vertices_for_rect(context, &outer_corner_rect, NEAR_DEPTH_VALUE);
+        let arc_rect = &arc_atlas_handle.borrow().location.rect;
+        let arc_rect = Rect::new(arc_rect.bottom_right() - Point2D::new(ARC_RADIUS, ARC_RADIUS),
+                                 Size2D::new(ARC_RADIUS, ARC_RADIUS));
+        self.add_texture_coords_for_rect(&arc_rect);
+        self.add_solid_colors(4, &TRANSPARENT_BLACK);
+        self.add_buffer_gamma(4, BUFFER, GAMMA);
+        self.add_elements_for_counterclockwise_wound_rect();
+
+        // 2
+        let top_corner_rect = Rect::new(bounds.origin + Point2D::new(radius, Au(0)),
+                                        Size2D::new(width, radius));
+        self.add_vertices_for_rect(context, &top_corner_rect, NEAR_DEPTH_VALUE);
+        self.add_dummy_texture_coords(4);
+        self.add_solid_colors(4, color);
+        self.add_dummy_buffer_gamma(4);
+        self.add_elements_for_counterclockwise_wound_rect();
+
+        // 3
+        let corner_center_rect = Rect::new(bounds.origin + Point2D::new(Au(0), radius),
+                                           Size2D::new(width + radius, width - radius));
+        self.add_vertices_for_rect(context, &corner_center_rect, NEAR_DEPTH_VALUE);
+        self.add_dummy_texture_coords(4);
+        self.add_solid_colors(4, color);
+        self.add_dummy_buffer_gamma(4);
+        self.add_elements_for_counterclockwise_wound_rect();
+
+        // 4
+        let left_corner_rect = Rect::new(bounds.origin + Point2D::new(Au(0), width),
+                                        Size2D::new(width, radius));
+        self.add_vertices_for_rect(context, &left_corner_rect, NEAR_DEPTH_VALUE);
+        self.add_dummy_texture_coords(4);
+        self.add_solid_colors(4, color);
+        self.add_dummy_buffer_gamma(4);
+        self.add_elements_for_counterclockwise_wound_rect();
+
+        // 5
+        let inner_corner_rect = Rect::new(bounds.origin + Point2D::new(width, width),
+                                          Size2D::new(radius, radius));
+        self.add_vertices_for_rect(context, &inner_corner_rect, NEAR_DEPTH_VALUE);
+        let inverted_arc_rect = &inverted_arc_atlas_handle.borrow().location.rect;
+        let inverted_arc_rect =
+            Rect::new(inverted_arc_rect.bottom_right() - Point2D::new(ARC_RADIUS, ARC_RADIUS),
+                      Size2D::new(ARC_RADIUS, ARC_RADIUS));
+        self.add_texture_coords_for_rect(&inverted_arc_rect);
+        self.add_solid_colors(4, &TRANSPARENT_BLACK);
+        self.add_buffer_gamma(4, BUFFER, GAMMA);
+        self.add_elements_for_counterclockwise_wound_rect();
+    }
 }
 
 pub struct Batcher {
@@ -222,6 +306,16 @@ impl Batcher {
                                                     Some(&mut blurred_glyph_asset.borrow_mut()));
                     }
                 }
+            }
+            DisplayItem::Border(ref mut border_display_item) => {
+                self.pending_batch.add_border(context,
+                                              &border_display_item.base.bounds,
+                                              border_display_item.width,
+                                              &border_display_item.color,
+                                              border_display_item.radius,
+                                              &mut *border_display_item.arc_asset.borrow_mut(),
+                                              &mut *border_display_item.inverted_arc_asset
+                                                                       .borrow_mut());
             }
         }
     }

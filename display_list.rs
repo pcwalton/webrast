@@ -6,6 +6,7 @@ use assets::Asset;
 
 use euclid::Rect;
 use std::cell::RefCell;
+use std::ops::{Add, Sub};
 use std::rc::Rc;
 
 const AU_PER_PX: i32 = 60;
@@ -54,6 +55,7 @@ pub struct DisplayList {
 pub enum DisplayItem {
     SolidColor(Box<SolidColorDisplayItem>),
     Text(Box<TextDisplayItem>),
+    Border(Box<BorderDisplayItem>),
 }
 
 impl DisplayItem {
@@ -63,6 +65,7 @@ impl DisplayItem {
                 &solid_color_display_item.base
             }
             DisplayItem::Text(ref text_display_item) => &text_display_item.base,
+            DisplayItem::Border(ref border_display_item) => &border_display_item.base,
         }
     }
 }
@@ -78,6 +81,16 @@ pub struct TextDisplayItem {
     pub base: BaseDisplayItem,
     pub glyph_asset: Rc<RefCell<Asset>>,
     pub blurred_glyph_asset: Option<Rc<RefCell<Asset>>>,
+}
+
+#[derive(Clone)]
+pub struct BorderDisplayItem {
+    pub base: BaseDisplayItem,
+    pub width: Au,
+    pub color: Color,
+    pub radius: Au,
+    pub arc_asset: Rc<RefCell<Asset>>,
+    pub inverted_arc_asset: Rc<RefCell<Asset>>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -112,8 +125,22 @@ pub struct ClippingRegion {
     pub main: Rect<Au>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Au(pub i32);
+
+impl Add for Au {
+    type Output = Au;
+    fn add(self, other: Au) -> Au {
+        Au(self.0 + other.0)
+    }
+}
+
+impl Sub for Au {
+    type Output = Au;
+    fn sub(self, other: Au) -> Au {
+        Au(self.0 - other.0)
+    }
+}
 
 impl Au {
     #[inline]

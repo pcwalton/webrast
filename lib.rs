@@ -4,8 +4,8 @@
 
 #![feature(main)]
 
+extern crate euclid;
 extern crate freetype;
-extern crate geom as euclid;
 extern crate gleam;
 extern crate num_cpus;
 

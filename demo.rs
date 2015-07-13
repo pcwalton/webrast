@@ -4,12 +4,12 @@
 
 extern crate glutin;
 
-use assets::{AssetDescription, AssetManager, BlurredGlyph, Glyph};
+use assets::{ArcAsset, ArcMode, AssetDescription, AssetManager, BlurredGlyph, Glyph};
 use atlas::Atlas;
 use batch::Batcher;
 use context::Context;
-use display_list::{Au, BaseDisplayItem, ClippingRegion, Color, DisplayItem, DisplayList};
-use display_list::{SolidColorDisplayItem, TextDisplayItem};
+use display_list::{Au, BaseDisplayItem, BorderDisplayItem, ClippingRegion, Color, DisplayItem};
+use display_list::{DisplayList, SolidColorDisplayItem, TextDisplayItem};
 use draw::DrawContext;
 use job_server::JobServer;
 
@@ -59,10 +59,10 @@ pub fn main() {
     let job_server = Rc::new(RefCell::new(JobServer::new(num_cpus::get() as u32)));
     let asset_manager = AssetManager::new(job_server, atlas.clone());
 
-    let glyph_asset =
+    /*let glyph_asset =
         asset_manager.create_asset(AssetDescription::Glyph(Glyph::new(FONT_PATH.to_string(),
                                                                       'S')),
-                                   None);
+                                   None);*/
     let mut display_list = DisplayList {
         items: vec![
             /*DisplayItem::SolidColor(Box::new(SolidColorDisplayItem {
@@ -97,6 +97,7 @@ pub fn main() {
                     a: 255,
                 },
             })),*/
+            /*
             DisplayItem::Text(Box::new(TextDisplayItem {
                 base: BaseDisplayItem {
                     bounds: Rect::new(Point2D::new(Au::from_px(0), Au::from_px(0)),
@@ -110,7 +111,7 @@ pub fn main() {
                 blurred_glyph_asset:
                     Some(asset_manager.create_asset(AssetDescription::BlurredGlyph(
                                 BlurredGlyph::new(10.0)), Some(glyph_asset))),
-            })),
+            })),*/
             /*DisplayItem::SolidColor(Box::new(SolidColorDisplayItem {
                 base: BaseDisplayItem {
                     bounds: Rect::new(Point2D::new(Au::from_px(0), Au::from_px(0)),
@@ -127,6 +128,30 @@ pub fn main() {
                     a: 255,
                 },
             })),*/
+            DisplayItem::Border(Box::new(BorderDisplayItem {
+                base: BaseDisplayItem {
+                    bounds: Rect::new(Point2D::new(Au::from_px(0), Au::from_px(0)),
+                                      Size2D::new(Au::from_px(100), Au::from_px(100))),
+                    clip: ClippingRegion {
+                        main: Rect::new(Point2D::new(Au::from_px(200), Au::from_px(200)),
+                                        Size2D::new(Au::from_px(100), Au::from_px(100))),
+                    },
+                },
+                color: Color {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255,
+                },
+                width: Au::from_px(150),
+                radius: Au::from_px(50),
+                arc_asset: asset_manager.create_asset(AssetDescription::Arc(ArcAsset {
+                    mode: ArcMode::FilledArc,
+                }), None),
+                inverted_arc_asset: asset_manager.create_asset(AssetDescription::Arc(ArcAsset {
+                    mode: ArcMode::InvertedFilledArc,
+                }), None),
+            })),
         ],
     };
 

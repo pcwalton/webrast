@@ -14,7 +14,7 @@ num_cpus = "*"
 [dependencies.freetype-rs]
 path = "../servo-packages/freetype-rs"
 
-[dependencies.geom]
+[dependencies.euclid]
 path = "../servo-packages/rust-geom"
 
 [dependencies.gleam]
