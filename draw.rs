@@ -40,7 +40,7 @@ static FRAGMENT_SHADER: &'static str = "
     varying vec2 vTextureCoord;
 
     void main() {
-        vec4 lTextureColor = vec4(0.0, 0.0, 0.0, 0.0);
+        /*vec4 lTextureColor = vec4(0.0, 0.0, 0.0, 0.0);
         if (vTextureCoord != vec2(0.0, 0.0))
             lTextureColor = texture2D(uTexture, vTextureCoord);
         float lAlpha = smoothstep(vBufferGamma[0] - vBufferGamma[1],
@@ -48,7 +48,8 @@ static FRAGMENT_SHADER: &'static str = "
                                   lTextureColor.a);
         vec4 lColor = vec4(lTextureColor.rgb, lAlpha) + vVertexColor;
         if (lColor.ga == vec2(0.0, 0.0))
-            discard;
+            discard;*/
+        vec4 lColor = vVertexColor;
         gl_FragColor = lColor;
     }
 ";
