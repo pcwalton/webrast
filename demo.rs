@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+extern crate clock_ticks;
 extern crate glutin;
 
 use assets::{ArcAsset, ArcMode, AssetDescription, AssetManager, BlurredGlyph, Glyph};
@@ -36,6 +37,27 @@ impl Log for SimpleLogger {
         if self.enabled(record.metadata()) {
             println!("{}", record.args());
         }
+    }
+}
+
+struct Timer<'a> {
+    description: &'a str,
+    start_time: u64,
+}
+
+impl<'a> Timer<'a> {
+    fn new(description: &str) -> Timer {
+        Timer {
+            description: description,
+            start_time: clock_ticks::precise_time_ns(),
+        }
+    }
+}
+
+impl<'a> Drop for Timer<'a> {
+    fn drop(&mut self) {
+        let elapsed = clock_ticks::precise_time_ns() - self.start_time;
+        println!("{}: {}ms", self.description, (elapsed as f64) / 1000000.0)
     }
 }
 
@@ -161,22 +183,39 @@ pub fn main() {
     };
     context.asset_manager.start_rasterizing_assets_in_display_list_as_necessary(&mut display_list);
 
-    let mut draw_context = DrawContext::new(atlas);
-    let mut batcher = Batcher::new();
-    for mut item in display_list.items.into_iter() {
-        batcher.add(&mut context, &mut item)
+    let mut draw_context;
+    let batches;
+    {
+        let _timer = Timer::new("building batches");
+        draw_context = DrawContext::new(atlas);
+        let mut batcher = Batcher::new();
+        for mut item in display_list.items.into_iter() {
+            batcher.add(&mut context, &mut item)
+        }
+        batches = batcher.finish();
     }
-    let batches = batcher.finish();
 
-    draw_context.init_gl_state();
-    draw_context.clear();
-    for batch in batches.into_iter() {
-        draw_context.draw_batch(&batch)
+    {
+        let _timer = Timer::new("initializing GL state and clearing");
+        draw_context.init_gl_state();
+        draw_context.clear();
+    }
+
+    {
+        let _timer = Timer::new("drawing batches");
+        for batch in batches.into_iter() {
+            draw_context.draw_batch(&batch)
+        }
+    }
+
+    {
+        let _timer = Timer::new("finishing rasterization");
+        draw_context.finish();
     }
 
     window.swap_buffers();
 
-    while !window.is_closed() {
+    loop {
         window.wait_events().next();
     }
 }

@@ -8,18 +8,11 @@ name = "webrast"
 path = "lib.rs"
 
 [dependencies]
+clock_ticks = "*"
+euclid = "*"
+freetype-rs = "*"
+gleam = "*"
+glutin = "*"
 log = "*"
 num_cpus = "*"
-
-[dependencies.freetype-rs]
-path = "../servo-packages/freetype-rs"
-
-[dependencies.euclid]
-path = "../servo-packages/rust-geom"
-
-[dependencies.gleam]
-path = "../servo-packages/gleam"
-
-[dependencies.glutin]
-path = "../servo-packages/glutin"
 

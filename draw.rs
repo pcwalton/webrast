@@ -197,7 +197,10 @@ impl DrawContext {
         gl::buffer_data(gl::ARRAY_BUFFER, &batch.texture_coords[..], gl::DYNAMIC_DRAW);
         gl::vertex_attrib_pointer_f32(self.program.texture_coord_attribute, 2, false, 0, 0);
         debug!("... texture coords: {:?}", &batch.texture_coords[..]);
+    }
 
+    pub fn finish(&self) {
+        gl::finish();
     }
 }
 
