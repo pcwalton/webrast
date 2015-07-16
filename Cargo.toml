@@ -15,4 +15,5 @@ gleam = "*"
 glutin = "*"
 log = "*"
 num_cpus = "*"
+rand = "*"
 

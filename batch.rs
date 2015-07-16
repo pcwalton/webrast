@@ -260,6 +260,10 @@ impl Batch {
         self.add_buffer_gamma(4, BUFFER, GAMMA);
         self.add_elements_for_counterclockwise_wound_rect();
     }
+
+    pub fn vertex_count(&self) -> usize {
+        self.vertices.len()
+    }
 }
 
 pub struct Batcher {

@@ -4,6 +4,7 @@
 
 extern crate clock_ticks;
 extern crate glutin;
+extern crate rand;
 
 use assets::{ArcAsset, ArcMode, AssetDescription, AssetManager, BlurredGlyph, Glyph};
 use atlas::Atlas;
@@ -21,16 +22,159 @@ use euclid::size::Size2D;
 use gleam::gl;
 use log::{self, Log, LogLevelFilter, LogMetadata, LogRecord};
 use num_cpus;
+use self::rand::Rng;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
+const WINDOW_WIDTH: i32 = 800;
+const WINDOW_HEIGHT: i32 = 600;
+const DEMO_RECT_COUNT: i32 = 1000;
 static FONT_PATH: &'static str = "/Users/pcwalton/Library/Fonts/Montserrat-Regular.ttf";
+static DEMO_TEXT: &'static str = "\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+    My love, he's mad, and my love, he's fleet, And a wild young wood-thing bore him! \
+    The ways are fair to his roaming feet, And the skies are sunlit for him.\n\
+";
+/*
+        And a wild young wood-thing bore him!\
+    The ways are fair to his roaming feet,\
+        And the skies are sunlit for him.\
+    As sharply sweet to my heart he seems\
+        As the fragrance of acacia.\
+    My own dear love, he is all my dreams --\
+        And I wish he were in Asia.\
+            -- Dorothy Parker, part 2\
+";*/
+const GLYPH_WIDTH: i32 = 8;
+const GLYPH_HEIGHT: i32 = 10;
 
 struct SimpleLogger;
 
 impl Log for SimpleLogger {
     fn enabled(&self, _: &LogMetadata) -> bool {
-        true
+        false
     }
 
     fn log(&self, record: &LogRecord) {
@@ -69,6 +213,7 @@ pub fn main() {
     }).unwrap();
 
     let window = WindowBuilder::new().with_gl(GlRequest::Specific(Api::OpenGl, (2, 1)))
+                                     //.with_vsync()
                                      .build()
                                      .unwrap();
     window.set_title("webrast demo");
@@ -150,7 +295,7 @@ pub fn main() {
                     a: 255,
                 },
             })),*/
-            DisplayItem::Border(Box::new(BorderDisplayItem {
+            /*DisplayItem::Border(Box::new(BorderDisplayItem {
                 base: BaseDisplayItem {
                     bounds: Rect::new(Point2D::new(Au::from_px(0), Au::from_px(0)),
                                       Size2D::new(Au::from_px(100), Au::from_px(100))),
@@ -173,13 +318,67 @@ pub fn main() {
                 inverted_arc_asset: asset_manager.create_asset(AssetDescription::Arc(ArcAsset {
                     mode: ArcMode::InvertedFilledArc,
                 }), None),
-            })),
+            })),*/
         ],
     };
 
+    let mut rng = rand::thread_rng();
+    for _ in 0..DEMO_RECT_COUNT {
+        let (x, width) = (rng.gen_range(0, WINDOW_WIDTH), rng.gen_range(0, WINDOW_WIDTH));
+        let (y, height) = (rng.gen_range(0, WINDOW_HEIGHT), rng.gen_range(0, WINDOW_HEIGHT));
+        let color: u8 = rng.gen_range::<u16>(0, 256) as u8;
+        display_list.items.push(DisplayItem::SolidColor(Box::new(SolidColorDisplayItem {
+            base: BaseDisplayItem {
+                bounds: Rect::new(Point2D::new(Au::from_px(x), Au::from_px(y)),
+                                  Size2D::new(Au::from_px(width), Au::from_px(height))),
+                clip: ClippingRegion {
+                    main: Rect::new(Point2D::new(Au::from_px(60), Au::from_px(100)),
+                                    Size2D::new(Au::from_px(240), Au::from_px(160))),
+                },
+            },
+            color: Color {
+                r: 0,
+                g: 0,
+                b: color,
+                a: 255,
+            },
+        })));
+    }
+
+    let (mut x_position, mut y_position) = (Au::from_px(0), Au::from_px(0));
+    let mut glyph_assets = HashMap::new();
+    for ch in DEMO_TEXT.chars() {
+        if ch == '\n' {
+            y_position = y_position + Au::from_px(GLYPH_HEIGHT);
+            x_position = Au::from_px(0);
+            continue
+        }
+
+        let glyph_asset = glyph_assets.entry(ch).or_insert_with(|| {
+            asset_manager.create_asset(AssetDescription::Glyph(Glyph::new(FONT_PATH.to_string(),
+                                                                          'S')),
+                                       None)
+        });
+        let item = DisplayItem::Text(Box::new(TextDisplayItem {
+            base: BaseDisplayItem {
+                bounds: Rect::new(Point2D::new(x_position, y_position),
+                                  Size2D::new(Au::from_px(GLYPH_WIDTH), Au::from_px(GLYPH_HEIGHT))),
+                clip: ClippingRegion {
+                    main: Rect::new(Point2D::new(Au::from_px(200), Au::from_px(200)),
+                                    Size2D::new(Au::from_px(100), Au::from_px(100))),
+                },
+            },
+            glyph_asset: (*glyph_asset).clone(),
+            blurred_glyph_asset: None,
+        }));
+        x_position = x_position + item.base().bounds.size.width - Au::from_px(GLYPH_WIDTH / 2);
+        display_list.items.push(item);
+        break;
+    }
+
     let mut context = Context {
         asset_manager: asset_manager,
-        render_target_size: Size2D::new(800, 600),
+        render_target_size: Size2D::new(WINDOW_WIDTH, WINDOW_HEIGHT),
     };
     context.asset_manager.start_rasterizing_assets_in_display_list_as_necessary(&mut display_list);
 
@@ -196,27 +395,39 @@ pub fn main() {
     }
 
     {
-        let _timer = Timer::new("initializing GL state and clearing");
+        let _timer = Timer::new("initializing GL state");
         draw_context.init_gl_state();
-        draw_context.clear();
     }
 
-    {
-        let _timer = Timer::new("drawing batches");
-        for batch in batches.into_iter() {
-            draw_context.draw_batch(&batch)
-        }
-    }
-
-    {
-        let _timer = Timer::new("finishing rasterization");
-        draw_context.finish();
-    }
-
-    window.swap_buffers();
-
+    let mut rasterization_times: Vec<u64> = Vec::new();
     loop {
-        window.wait_events().next();
+        {
+            let string = format!("drawing batches ({} vertices, ~{} triangles)",
+                                 batches[0].vertex_count(),
+                                 batches[0].vertex_count() / 3);
+            let _timer = Timer::new(&*string);
+            draw_context.clear();
+            for batch in batches.iter() {
+                draw_context.draw_batch(batch)
+            }
+        }
+
+        {
+            let start = clock_ticks::precise_time_ns();
+            draw_context.finish();
+            rasterization_times.push(clock_ticks::precise_time_ns() - start);
+
+            let mut sum = 0;
+            for time in rasterization_times.iter() {
+                sum += *time;
+            }
+            println!("finishing rasterization mean: {}ms",
+                     ((sum / (rasterization_times.len() as u64)) as f64) / 1000000.0);
+        }
+
+        window.swap_buffers();
+
+        for _ in window.poll_events() {}
     }
 }
 
